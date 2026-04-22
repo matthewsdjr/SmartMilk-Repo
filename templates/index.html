@@ -855,8 +855,14 @@
                     scanDataAvailable = true;
                     updateButtons();
                     showCharts(data.chart_data);
-                    if (data.prediction) displayPrediction(data.prediction);
-                    if (data.quality) displayQuality(data.quality);
+                    if (data.prediction) {
+                        displayPrediction(data.prediction);
+                        if (data.prediction.class === 'Sana' && data.quality) {
+                            displayQuality(data.quality);
+                        } else {
+                            document.getElementById('qualityPanel').style.display = 'none';
+                        }
+                    }
                     showNotification(data.message, 'success');
                 } else {
                     showNotification(data.message, 'error');
