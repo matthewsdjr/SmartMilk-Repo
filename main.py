@@ -88,8 +88,8 @@ def predict_regression(reflectance_sg_reg):
     """
     results = {}
     for key, m in REGRESSION_MODELS.items():
-        # mapminmax en entrada: xn = 2*(x - xoffset).*gain - 1
-        xn = 2 * (reflectance_sg_reg - m['input_xoffset']) * m['input_gain'] - 1
+        # mapminmax en entrada: xn = (x - xoffset) * gain - 1
+        xn = (reflectance_sg_reg - m['input_xoffset']) * m['input_gain'] - 1
         # Capa oculta: tansig (tanh)
         hidden = np.tanh(m['W1'] @ xn + m['B1'])
         # Capa de salida: purelin (lineal)

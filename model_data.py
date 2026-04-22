@@ -24,67 +24,29 @@ SIGMA = _cls["SIGMA"]  # (228,) desv. estandar para estandarizacion
 CLASS_NAMES = ["Sana", "Mastitis"]
 
 # --- Modelos de regresion: calidad de leche ---
+# Input: reflectancia con filtro Savitzky-Golay (window=19, poly=2)
+# Normalizacion: mapminmax en entrada y salida
 _reg = np.load(_models_dir / "regression_models.npz")
 
+def _load_reg(prefix, label, unit, display_range):
+    ymin = _reg[f"{prefix}_output_ymin"].item()
+    ymax = _reg[f"{prefix}_output_ymax"].item()
+    return {
+        "label": label, "unit": unit,
+        "range": (ymin, ymax),
+        "display_range": display_range,
+        "W1": _reg[f"{prefix}_W1"], "B1": _reg[f"{prefix}_B1"],
+        "W2": _reg[f"{prefix}_W2"], "B2": _reg[f"{prefix}_B2"].item(),
+        "input_xoffset": _reg[f"{prefix}_input_xoffset"],
+        "input_gain": _reg[f"{prefix}_input_gain"],
+        "output_gain": 2.0 / (ymax - ymin),
+        "output_xoffset": ymin,
+    }
+
 REGRESSION_MODELS = {
-    "grasa": {
-        "label": "Grasa",
-        "unit": "%",
-        "range": (0.23, 4.8),
-        "display_range": (0, 6),
-        "W1": _reg["grasa_W1"], "B1": _reg["grasa_B1"],
-        "W2": _reg["grasa_W2"], "B2": _reg["grasa_B2"].item(),
-        "input_xoffset": _reg["grasa_input_xoffset"],
-        "input_gain": _reg["grasa_input_gain"],
-        "output_gain": _reg["grasa_output_gain"].item(),
-        "output_xoffset": _reg["grasa_output_xoffset"].item(),
-    },
-    "adagua": {
-        "label": "Adicion de Agua",
-        "unit": "%",
-        "range": (0.38, 28.84),
-        "display_range": (0, 30),
-        "W1": _reg["adagua_W1"], "B1": _reg["adagua_B1"],
-        "W2": _reg["adagua_W2"], "B2": _reg["adagua_B2"].item(),
-        "input_xoffset": _reg["adagua_input_xoffset"],
-        "input_gain": _reg["adagua_input_gain"],
-        "output_gain": _reg["adagua_output_gain"].item(),
-        "output_xoffset": _reg["adagua_output_xoffset"].item(),
-    },
-    "densidad": {
-        "label": "Densidad",
-        "unit": "g/L",
-        "range": (15.32, 38.63),
-        "display_range": (15, 40),
-        "W1": _reg["dens_W1"], "B1": _reg["dens_B1"],
-        "W2": _reg["dens_W2"], "B2": _reg["dens_B2"].item(),
-        "input_xoffset": _reg["dens_input_xoffset"],
-        "input_gain": _reg["dens_input_gain"],
-        "output_gain": _reg["dens_output_gain"].item(),
-        "output_xoffset": _reg["dens_output_xoffset"].item(),
-    },
-    "lactosa": {
-        "label": "Lactosa",
-        "unit": "%",
-        "range": (2.93, 5.6),
-        "display_range": (0, 7),
-        "W1": _reg["lact_W1"], "B1": _reg["lact_B1"],
-        "W2": _reg["lact_W2"], "B2": _reg["lact_B2"].item(),
-        "input_xoffset": _reg["lact_input_xoffset"],
-        "input_gain": _reg["lact_input_gain"],
-        "output_gain": _reg["lact_output_gain"].item(),
-        "output_xoffset": _reg["lact_output_xoffset"].item(),
-    },
-    "sng": {
-        "label": "SNG",
-        "unit": "%",
-        "range": (5.78, 10.7),
-        "display_range": (5, 12),
-        "W1": _reg["sng_W1"], "B1": _reg["sng_B1"],
-        "W2": _reg["sng_W2"], "B2": _reg["sng_B2"].item(),
-        "input_xoffset": _reg["sng_input_xoffset"],
-        "input_gain": _reg["sng_input_gain"],
-        "output_gain": _reg["sng_output_gain"].item(),
-        "output_xoffset": _reg["sng_output_xoffset"].item(),
-    },
+    "grasa":    _load_reg("grasa",  "Grasa",            "%",   (0, 6)),
+    "adagua":   _load_reg("adagua", "Adicion de Agua",  "%",   (0, 30)),
+    "densidad": _load_reg("dens",   "Densidad",         "g/L", (15, 40)),
+    "lactosa":  _load_reg("lact",   "Lactosa",          "%",   (0, 7)),
+    "sng":      _load_reg("sng",    "SNG",              "%",   (5, 12)),
 }
