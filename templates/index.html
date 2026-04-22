@@ -82,7 +82,7 @@
 
         /* Left Panel - Controls */
         .left-panel {
-            width: 300px;
+            width: 350px;
             background: white;
             border-radius: 10px;
             padding: 20px;
@@ -395,34 +395,6 @@
         .quality-bar-fill.bar-lactosa   { background: linear-gradient(90deg, #66bb6a, #2e7d32); }
         .quality-bar-fill.bar-sng       { background: linear-gradient(90deg, #ef5350, #c62828); }
 
-        .scan-info {
-            background-color: #f8f9fa;
-            padding: 15px;
-            border-radius: 8px;
-            margin-bottom: 15px;
-        }
-
-        .info-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 10px;
-        }
-
-        .info-item {
-            display: flex;
-            justify-content: space-between;
-            padding: 5px 0;
-        }
-
-        .info-label {
-            font-weight: 600;
-            color: #555;
-        }
-
-        .info-value {
-            color: #333;
-        }
-
         /* Footer */
         .footer {
             background-color: #1a2b4c;
@@ -587,19 +559,6 @@
                 <div class="spinner"></div>
                 <p id="loadingText">Procesando...</p>
             </div>
-        </div>
-
-        <!-- Right Panel - Display -->
-        <div class="right-panel">
-            <div class="plot-tabs" id="plotTabs" style="display: none;">
-                <div class="plot-tab active" data-tab="reflectance" onclick="switchTab('reflectance')">Reflectancia</div>
-                <div class="plot-tab" data-tab="absorbance" onclick="switchTab('absorbance')">Absorbancia</div>
-            </div>
-            <div class="display-area" id="displayArea">
-                <div class="no-data-message">
-                    Realiza un escaneo para ver el espectro
-                </div>
-            </div>
 
             <!-- Prediction Panel -->
             <div class="prediction-panel" id="predictionPanel">
@@ -632,11 +591,17 @@
                 <div class="quality-title">Analisis de Calidad</div>
                 <div class="quality-bars" id="qualityBars"></div>
             </div>
+        </div>
 
-            <div class="scan-info" id="scanInfo" style="display: none;">
-                <h3>Información del Escaneo</h3>
-                <div class="info-grid" id="infoGrid">
-                    <!-- La información se llenará dinámicamente -->
+        <!-- Right Panel - Display -->
+        <div class="right-panel">
+            <div class="plot-tabs" id="plotTabs" style="display: none;">
+                <div class="plot-tab active" data-tab="reflectance" onclick="switchTab('reflectance')">Reflectancia</div>
+                <div class="plot-tab" data-tab="absorbance" onclick="switchTab('absorbance')">Absorbancia</div>
+            </div>
+            <div class="display-area" id="displayArea">
+                <div class="no-data-message">
+                    Realiza un escaneo para ver el espectro
                 </div>
             </div>
         </div>
@@ -681,8 +646,6 @@
         const uploadDriveBtn = document.getElementById('uploadDriveBtn');
         const sampleNameInput = document.getElementById('sampleName');
         const displayArea = document.getElementById('displayArea');
-        const scanInfo = document.getElementById('scanInfo');
-        const infoGrid = document.getElementById('infoGrid');
         const loadingIndicator = document.getElementById('loadingIndicator');
         const loadingText = document.getElementById('loadingText');
 
@@ -858,24 +821,6 @@
             }
         }
 
-        function displayScanInfo(data) {
-            scanInfo.style.display = 'block';
-            infoGrid.innerHTML = `
-                <div class="info-item">
-                    <span class="info-label">Tiempo de escaneo:</span>
-                    <span class="info-value">${data.message}</span>
-                </div>
-                <div class="info-item">
-                    <span class="info-label">Longitud del espectro:</span>
-                    <span class="info-value">${data.spectrum_length} puntos</span>
-                </div>
-                <div class="info-item">
-                    <span class="info-label">Rango de longitud de onda:</span>
-                    <span class="info-value">${data.wavelength_range}</span>
-                </div>
-            `;
-        }
-
         // Event Listeners
         checkConnectionBtn.addEventListener('click', async () => {
             showLoading('Verificando conexion...');
@@ -906,7 +851,6 @@
                     scanDataAvailable = true;
                     updateButtons();
                     showCharts(data.chart_data);
-                    displayScanInfo(data);
                     if (data.prediction) displayPrediction(data.prediction);
                     if (data.quality) displayQuality(data.quality);
                     showNotification(data.message, 'success');
