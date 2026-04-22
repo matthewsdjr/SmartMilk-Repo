@@ -325,6 +325,76 @@
             color: #333;
         }
 
+        /* Quality Panel */
+        .quality-panel {
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 15px;
+            display: none;
+            border: 2px solid #1a2b4c;
+            background: linear-gradient(135deg, #f8f9ff, #eef1f8);
+        }
+
+        .quality-title {
+            font-size: 15px;
+            font-weight: 700;
+            color: #1a2b4c;
+            margin-bottom: 15px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .quality-bars {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .quality-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .quality-label {
+            width: 130px;
+            font-size: 13px;
+            font-weight: 600;
+            color: #444;
+            text-align: right;
+            flex-shrink: 0;
+        }
+
+        .quality-bar-wrapper {
+            flex-grow: 1;
+            height: 22px;
+            background-color: #e0e0e0;
+            border-radius: 11px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .quality-bar-fill {
+            height: 100%;
+            border-radius: 11px;
+            transition: width 0.6s ease;
+            min-width: 2px;
+        }
+
+        .quality-value {
+            width: 80px;
+            font-size: 14px;
+            font-weight: 700;
+            color: #333;
+            flex-shrink: 0;
+        }
+
+        .quality-bar-fill.bar-grasa     { background: linear-gradient(90deg, #f9a825, #ff8f00); }
+        .quality-bar-fill.bar-adagua    { background: linear-gradient(90deg, #29b6f6, #0277bd); }
+        .quality-bar-fill.bar-densidad  { background: linear-gradient(90deg, #ab47bc, #7b1fa2); }
+        .quality-bar-fill.bar-lactosa   { background: linear-gradient(90deg, #66bb6a, #2e7d32); }
+        .quality-bar-fill.bar-sng       { background: linear-gradient(90deg, #ef5350, #c62828); }
+
         .scan-info {
             background-color: #f8f9fa;
             padding: 15px;
@@ -557,6 +627,12 @@
                 </div>
             </div>
 
+            <!-- Quality Panel -->
+            <div class="quality-panel" id="qualityPanel">
+                <div class="quality-title">Analisis de Calidad</div>
+                <div class="quality-bars" id="qualityBars"></div>
+            </div>
+
             <div class="scan-info" id="scanInfo" style="display: none;">
                 <h3>Información del Escaneo</h3>
                 <div class="info-grid" id="infoGrid">
@@ -634,7 +710,7 @@
             paper_bgcolor: '#fafafa',
             plot_bgcolor: '#fff',
             // legend: { x: 0.01, y: 0.99, bgcolor: 'rgba(255,255,255,0.8)', bordercolor: '#ddd', borderwidth: 1 }
-            showlegend: False
+            showlegend: false
         };
 
         function renderChart(tab) {
@@ -756,6 +832,32 @@
             document.getElementById('predictionConfidence').textContent = prediction.confidence + '%';
         }
 
+        function displayQuality(quality) {
+            const panel = document.getElementById('qualityPanel');
+            const bars = document.getElementById('qualityBars');
+            panel.style.display = 'block';
+            bars.innerHTML = '';
+
+            const order = ['grasa', 'lactosa', 'sng', 'densidad', 'adagua'];
+            for (const key of order) {
+                const q = quality[key];
+                if (!q) continue;
+                const pct = ((q.value - q.min) / (q.max - q.min)) * 100;
+                const pctClamped = Math.max(0, Math.min(100, pct));
+
+                const item = document.createElement('div');
+                item.className = 'quality-item';
+                item.innerHTML = `
+                    <span class="quality-label">${q.label}</span>
+                    <div class="quality-bar-wrapper">
+                        <div class="quality-bar-fill bar-${key}" style="width: ${pctClamped}%"></div>
+                    </div>
+                    <span class="quality-value">${q.value} ${q.unit}</span>
+                `;
+                bars.appendChild(item);
+            }
+        }
+
         function displayScanInfo(data) {
             scanInfo.style.display = 'block';
             infoGrid.innerHTML = `
@@ -806,6 +908,7 @@
                     showCharts(data.chart_data);
                     displayScanInfo(data);
                     if (data.prediction) displayPrediction(data.prediction);
+                    if (data.quality) displayQuality(data.quality);
                     showNotification(data.message, 'success');
                 } else {
                     showNotification(data.message, 'error');

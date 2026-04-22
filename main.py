@@ -25,7 +25,7 @@ import numpy as np
 from scipy.signal import savgol_filter
 from scipy.interpolate import interp1d
 from reference_data import REFERENCE_WAVELENGTHS, REFERENCE_SIGNAL
-from model_data import W1, B1, W2, B2, MU, SIGMA, CLASS_NAMES
+from model_data import W1, B1, W2, B2, MU, SIGMA, CLASS_NAMES, REGRESSION_MODELS
 
 app = FastAPI(title="NIRScan Nano Web Interface", version="1.0.0")
 
@@ -81,7 +81,34 @@ def predict_mastitis(reflectance_sg):
         "probability_mastitis": round(float(probs[1]) * 100, 2),
         "confidence": round(float(probs[pred_idx]) * 100, 2)
     }
+def predict_regression(reflectance_sg_reg):
+    """Ejecutar todos los modelos de regresion (calidad de leche).
+    Input: reflectancia filtrada con Savitzky-Golay (window=19, poly=2).
+    Output: dict con predicciones de cada parametro.
+    """
+    results = {}
+    for key, m in REGRESSION_MODELS.items():
+        # mapminmax en entrada: xn = 2*(x - xoffset).*gain - 1
+        xn = 2 * (reflectance_sg_reg - m['input_xoffset']) * m['input_gain'] - 1
+        # Capa oculta: tansig (tanh)
+        hidden = np.tanh(m['W1'] @ xn + m['B1'])
+        # Capa de salida: purelin (lineal)
+        yn = (m['W2'] @ hidden).item() + m['B2']
+        # Reverse mapminmax en salida
+        y = (yn + 1) / m['output_gain'] + m['output_xoffset']
+        # Clamp al rango valido
+        y = float(np.clip(y, m['range'][0], m['range'][1]))
+        results[key] = {
+            "value": round(y, 2),
+            "label": m['label'],
+            "unit": m['unit'],
+            "min": m['display_range'][0],
+            "max": m['display_range'][1],
+        }
+    return results
+
 print(f"Modelo cargado: {W1.shape[1]} inputs -> {W1.shape[0]} hidden -> {W2.shape[0]} clases ({', '.join(CLASS_NAMES)})")
+print(f"Modelos de regresion cargados: {', '.join(REGRESSION_MODELS.keys())}")
 
 # Crear directorios necesarios
 def ensure_directories():
@@ -174,20 +201,27 @@ async def perform_scan():
         data_json = scan_interpret(scan_data)
         interpreted_data = json.loads(data_json)
         
-        # Calcular reflectancia con filtro Savitzky-Golay
+        # Calcular reflectancia
         n = interpreted_data['length']
         wavelengths = np.array(interpreted_data['wavelength'][:n])
         intensities = np.array(interpreted_data['intensity'][:n])
         reflectance = compute_reflectance(wavelengths, intensities)
-        window_length = min(11, n if n % 2 == 1 else n - 1)
-        reflectance_sg = savgol_filter(reflectance, window_length, 3)
+
+        # Filtro SG para graficas y modelo de mastitis (window=11, poly=3)
+        sg_w_display = min(11, n if n % 2 == 1 else n - 1)
+        reflectance_sg = savgol_filter(reflectance, sg_w_display, 3)
+
+        # Filtro SG para modelos de regresion (window=19, poly=2)
+        sg_w_reg = min(19, n if n % 2 == 1 else n - 1)
+        reflectance_sg_reg = savgol_filter(reflectance, sg_w_reg, 2)
 
         # Absorbancia con filtro SG
         absorbance = compute_absorbance(reflectance)
-        absorbance_sg = savgol_filter(absorbance, window_length, 3)
+        absorbance_sg = savgol_filter(absorbance, sg_w_display, 3)
 
-        # Prediccion de mastitis
+        # Predicciones
         prediction = predict_mastitis(reflectance_sg)
+        quality = predict_regression(reflectance_sg_reg)
 
         return {
             "success": True,
@@ -201,7 +235,8 @@ async def perform_scan():
                 "absorbance": absorbance.tolist(),
                 "absorbance_sg": absorbance_sg.tolist()
             },
-            "prediction": prediction
+            "prediction": prediction,
+            "quality": quality
         }
         
     except Exception as e:
