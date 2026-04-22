@@ -95,11 +95,12 @@ def predict_regression(reflectance_sg_reg):
         # Capa de salida: purelin (lineal)
         yn = (m['W2'] @ hidden).item() + m['B2']
         # Reverse mapminmax en salida
-        y = (yn + 1) / m['output_gain'] + m['output_xoffset']
-        # Clamp al rango valido
-        y = float(np.clip(y, m['range'][0], m['range'][1]))
+        y_raw = (yn + 1) / m['output_gain'] + m['output_xoffset']
+        y_clamped = float(np.clip(y_raw, m['range'][0], m['range'][1]))
+        sat = int(np.sum(np.abs(hidden) > 0.999))
+        print(f"  {m['label']:>16}: raw={y_raw:>10.4f}  clamped={y_clamped:>8.4f}  rango=[{m['range'][0]}, {m['range'][1]}]  sat={sat}/15")
         results[key] = {
-            "value": round(y, 2),
+            "value": round(y_clamped, 2),
             "label": m['label'],
             "unit": m['unit'],
             "min": m['display_range'][0],
