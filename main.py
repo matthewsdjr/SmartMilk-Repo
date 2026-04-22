@@ -25,7 +25,10 @@ import numpy as np
 from scipy.signal import savgol_filter
 from scipy.interpolate import interp1d
 from reference_data import REFERENCE_WAVELENGTHS, REFERENCE_SIGNAL
-from model_data import W1, B1, W2, B2, MU, SIGMA, CLASS_NAMES, REGRESSION_MODELS
+from model_data import (
+    W1, B1, W2, B2, MU, SIGMA, CLASS_NAMES,
+    MODEL_GRASA, MODEL_ADAGUA, MODEL_DENSIDAD, MODEL_LACTOSA, MODEL_SNG,
+)
 
 app = FastAPI(title="NIRScan Nano Web Interface", version="1.0.0")
 
@@ -81,35 +84,45 @@ def predict_mastitis(reflectance_sg):
         "probability_mastitis": round(float(probs[1]) * 100, 2),
         "confidence": round(float(probs[pred_idx]) * 100, 2)
     }
-def predict_regression(reflectance_sg_reg):
-    """Ejecutar todos los modelos de regresion (calidad de leche).
-    Input: reflectancia filtrada con Savitzky-Golay (window=19, poly=2).
-    Output: dict con predicciones de cada parametro.
-    """
-    results = {}
-    for key, m in REGRESSION_MODELS.items():
-        # mapminmax en entrada: xn = (x - xoffset) * gain - 1
-        xn = (reflectance_sg_reg - m['input_xoffset']) * m['input_gain'] - 1
-        # Capa oculta: tansig (tanh)
-        hidden = np.tanh(m['W1'] @ xn + m['B1'])
-        # Capa de salida: purelin (lineal)
-        yn = (m['W2'] @ hidden).item() + m['B2']
-        # Reverse mapminmax en salida
-        y_raw = (yn + 1) / m['output_gain'] + m['output_xoffset']
-        y_clamped = float(np.clip(y_raw, m['range'][0], m['range'][1]))
-        sat = int(np.sum(np.abs(hidden) > 0.999))
-        print(f"  {m['label']:>16}: raw={y_raw:>10.4f}  clamped={y_clamped:>8.4f}  rango=[{m['range'][0]}, {m['range'][1]}]  sat={sat}/15")
-        results[key] = {
-            "value": round(y_clamped, 2),
-            "label": m['label'],
-            "unit": m['unit'],
-            "min": m['display_range'][0],
-            "max": m['display_range'][1],
-        }
-    return results
+def _run_regression(m, reflectance_sg_reg):
+    """Forward pass para un modelo de regresion individual."""
+    xn = (reflectance_sg_reg - m['input_xoffset']) * m['input_gain'] - 1
+    hidden = np.tanh(m['W1'] @ xn + m['B1'])
+    yn = (m['W2'] @ hidden).item() + m['B2']
+    y_raw = (yn + 1) / m['output_gain'] + m['output_xoffset']
+    y_clamped = float(np.clip(y_raw, m['range'][0], m['range'][1]))
+    sat = int(np.sum(np.abs(hidden) > 0.999))
+    print(f"  {m['label']:>16}: raw={y_raw:>10.4f}  clamped={y_clamped:>8.4f}  rango=[{m['range'][0]}, {m['range'][1]}]  sat={sat}/15")
+    return {
+        "value": round(y_clamped, 2),
+        "label": m['label'],
+        "unit": m['unit'],
+        "min": m['display_range'][0],
+        "max": m['display_range'][1],
+    }
 
-print(f"Modelo cargado: {W1.shape[1]} inputs -> {W1.shape[0]} hidden -> {W2.shape[0]} clases ({', '.join(CLASS_NAMES)})")
-print(f"Modelos de regresion cargados: {', '.join(REGRESSION_MODELS.keys())}")
+def predict_grasa(reflectance_sg_reg):
+    """Predecir porcentaje de grasa."""
+    return _run_regression(MODEL_GRASA, reflectance_sg_reg)
+
+def predict_adagua(reflectance_sg_reg):
+    """Predecir porcentaje de adicion de agua."""
+    return _run_regression(MODEL_ADAGUA, reflectance_sg_reg)
+
+def predict_densidad(reflectance_sg_reg):
+    """Predecir densidad."""
+    return _run_regression(MODEL_DENSIDAD, reflectance_sg_reg)
+
+def predict_lactosa(reflectance_sg_reg):
+    """Predecir porcentaje de lactosa."""
+    return _run_regression(MODEL_LACTOSA, reflectance_sg_reg)
+
+def predict_sng(reflectance_sg_reg):
+    """Predecir porcentaje de solidos no grasos."""
+    return _run_regression(MODEL_SNG, reflectance_sg_reg)
+
+print(f"Modelo mastitis: {W1.shape[1]} inputs -> {W1.shape[0]} hidden -> {W2.shape[0]} clases ({', '.join(CLASS_NAMES)})")
+print(f"Modelos de regresion: grasa, adagua, densidad, lactosa, sng")
 
 # Crear directorios necesarios
 def ensure_directories():
@@ -222,7 +235,14 @@ async def perform_scan():
 
         # Predicciones
         prediction = predict_mastitis(reflectance_sg)
-        quality = predict_regression(reflectance_sg_reg)
+        print("Predicciones de calidad:")
+        quality = {
+            "grasa": predict_grasa(reflectance_sg_reg),
+            "adagua": predict_adagua(reflectance_sg_reg),
+            "densidad": predict_densidad(reflectance_sg_reg),
+            "lactosa": predict_lactosa(reflectance_sg_reg),
+            "sng": predict_sng(reflectance_sg_reg),
+        }
 
         return {
             "success": True,

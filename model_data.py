@@ -26,27 +26,25 @@ CLASS_NAMES = ["Sana", "Mastitis"]
 # --- Modelos de regresion: calidad de leche ---
 # Input: reflectancia con filtro Savitzky-Golay (window=19, poly=2)
 # Normalizacion: mapminmax en entrada y salida
-_reg = np.load(_models_dir / "regression_models.npz")
 
-def _load_reg(prefix, label, unit, display_range):
-    ymin = _reg[f"{prefix}_output_ymin"].item()
-    ymax = _reg[f"{prefix}_output_ymax"].item()
+def _load_model(filename, label, unit, display_range):
+    data = np.load(_models_dir / filename)
+    ymin = data["output_ymin"].item()
+    ymax = data["output_ymax"].item()
     return {
         "label": label, "unit": unit,
         "range": (ymin, ymax),
         "display_range": display_range,
-        "W1": _reg[f"{prefix}_W1"], "B1": _reg[f"{prefix}_B1"],
-        "W2": _reg[f"{prefix}_W2"], "B2": _reg[f"{prefix}_B2"].item(),
-        "input_xoffset": _reg[f"{prefix}_input_xoffset"],
-        "input_gain": _reg[f"{prefix}_input_gain"],
+        "W1": data["W1"], "B1": data["B1"],
+        "W2": data["W2"], "B2": data["B2"].item(),
+        "input_xoffset": data["input_xoffset"],
+        "input_gain": data["input_gain"],
         "output_gain": 2.0 / (ymax - ymin),
         "output_xoffset": ymin,
     }
 
-REGRESSION_MODELS = {
-    "grasa":    _load_reg("grasa",  "Grasa",            "%",   (0, 6)),
-    "adagua":   _load_reg("adagua", "Adicion de Agua",  "%",   (0, 30)),
-    "densidad": _load_reg("dens",   "Densidad",         "g/L", (15, 40)),
-    "lactosa":  _load_reg("lact",   "Lactosa",          "%",   (0, 7)),
-    "sng":      _load_reg("sng",    "SNG",              "%",   (5, 12)),
-}
+MODEL_GRASA    = _load_model("grasa_model.npz",  "Grasa",           "%",   (0, 6))
+MODEL_ADAGUA   = _load_model("adagua_model.npz", "Adicion de Agua", "%",   (0, 30))
+MODEL_DENSIDAD = _load_model("dens_model.npz",   "Densidad",        "g/L", (15, 40))
+MODEL_LACTOSA  = _load_model("lact_model.npz",   "Lactosa",         "%",   (0, 7))
+MODEL_SNG      = _load_model("sng_model.npz",    "SNG",             "%",   (5, 12))
