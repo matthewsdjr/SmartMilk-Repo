@@ -1,38 +1,31 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Servidor FastAPI para la interfaz web del sensor NIRScan Nano
+Servidor FastAPI para la interfaz web del sensor NIRScan Nano.
+Proyecto Smart Milk - Universidad Nacional de Frontera.
 """
 
-from fastapi import FastAPI, HTTPException, BackgroundTasks
+from fastapi import FastAPI, HTTPException
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import HTMLResponse, JSONResponse, FileResponse
+from fastapi.responses import HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 import json
 import os
-import sys
 import time
 from datetime import datetime
-from pathlib import Path
-
-# Agregar el directorio padre al path para importar los módulos del sensor
-sys.path.append(str(Path(__file__).parent.parent))
 
 from scan import Spectrometer, NNO_FILE_REF_CAL_COEFF, NNO_FILE_SCAN_DATA
 from spectrum_library import scan_interpret
+import matplotlib
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
-import base64
-from io import BytesIO
 from scipy.signal import savgol_filter
 from scipy.interpolate import interp1d
 from reference_data import REFERENCE_WAVELENGTHS, REFERENCE_SIGNAL
 from model_data import W1, B1, W2, B2, MU, SIGMA, CLASS_NAMES
-
-# Configurar matplotlib para usar backend no interactivo
-plt.switch_backend('Agg')
 
 app = FastAPI(title="NIRScan Nano Web Interface", version="1.0.0")
 
@@ -51,7 +44,6 @@ device_connected = False
 scan_data = None
 reference_data = None
 interpreted_data = None
-current_plot_path = None
 
 # Interpolador de referencia (constante, se construye una sola vez)
 _ref_interpolator = interp1d(
@@ -153,7 +145,7 @@ async def check_connection():
         }
 
 @app.post("/api/perform-scan")
-async def perform_scan(background_tasks: BackgroundTasks):
+async def perform_scan():
     """Realizar escaneo del sensor"""
     global spectrometer, device_connected, scan_data, reference_data, interpreted_data
     
@@ -286,96 +278,6 @@ async def save_data(filename: str):
             "success": False,
             "message": f"Error al guardar datos: {str(e)}"
         }
-
-def create_plot(data, title="Espectro NIR"):
-    """Crear gráfico con intensidad, reflectancia y reflectancia filtrada (Savitzky-Golay)"""
-    try:
-        n = data["length"]
-        wavelengths = np.array(data["wavelength"][:n])
-        intensities = np.array(data["intensity"][:n])
-
-        # Calcular reflectancia y absorbancia
-        reflectance = compute_reflectance(wavelengths, intensities)
-        absorbance = compute_absorbance(reflectance)
-
-        # Aplicar filtro Savitzky-Golay (window=11, polynomial=3)
-        window_length = min(11, n if n % 2 == 1 else n - 1)
-        reflectance_sg = savgol_filter(reflectance, window_length, 3)
-
-        fig, axes = plt.subplots(2, 1, figsize=(12, 10), sharex=True)
-
-        # Panel 1: Intensidad cruda
-        axes[0].plot(wavelengths, intensities, linewidth=1.5, color='blue')
-        axes[0].set_title(f'{title} - Intensidad', fontsize=14, fontweight='bold')
-        axes[0].set_ylabel('Intensidad (ADC)', fontsize=12)
-        axes[0].grid(True, alpha=0.3)
-
-        # Panel 2: Reflectancia + filtro Savitzky-Golay
-        axes[1].plot(wavelengths, reflectance, linewidth=1, color='gray', alpha=0.5, label='Reflectancia')
-        axes[1].plot(wavelengths, reflectance_sg, linewidth=2, color='red', label='Reflectancia (Savitzky-Golay)')
-        axes[1].set_title(f'{title} - Reflectancia', fontsize=14, fontweight='bold')
-        axes[1].set_ylabel('Reflectancia (R)', fontsize=12)
-        axes[1].set_xlabel('Longitud de Onda (nm)', fontsize=12)
-        axes[1].legend(fontsize=11)
-        axes[1].grid(True, alpha=0.3)
-
-        scan_timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        fig.text(0.02, 0.01, f'Escaneo: {scan_timestamp} | Filtro SG: window=11, poly=3', fontsize=9, style='italic')
-        fig.tight_layout(rect=[0, 0.03, 1, 1])
-
-        buffer = BytesIO()
-        fig.savefig(buffer, format='png', dpi=300, bbox_inches='tight')
-        buffer.seek(0)
-        plot_data = base64.b64encode(buffer.getvalue()).decode()
-        plt.close(fig)
-
-        return plot_data
-
-    except Exception as e:
-        print(f"Error al crear gráfico: {e}")
-        return None
-
-def create_single_plot(data, plot_type, title="Espectro NIR"):
-    """Crear gráfico individual (reflectance o absorbance) como base64"""
-    try:
-        n = data["length"]
-        wavelengths = np.array(data["wavelength"][:n])
-        intensities = np.array(data["intensity"][:n])
-
-        reflectance = compute_reflectance(wavelengths, intensities)
-        window_length = min(11, n if n % 2 == 1 else n - 1)
-        reflectance_sg = savgol_filter(reflectance, window_length, 3)
-
-        fig, ax = plt.subplots(figsize=(12, 6))
-
-        if plot_type == "reflectance":
-            ax.plot(wavelengths, reflectance, linewidth=1, color='gray', alpha=0.4, label='Reflectancia')
-            ax.plot(wavelengths, reflectance_sg, linewidth=2, color='red', label='Reflectancia (Savitzky-Golay)')
-            ax.set_ylabel('Reflectancia (R)', fontsize=12)
-            ax.legend(fontsize=11)
-        elif plot_type == "absorbance":
-            absorbance = compute_absorbance(reflectance)
-            absorbance_sg = savgol_filter(absorbance, window_length, 3)
-            ax.plot(wavelengths, absorbance, linewidth=1, color='gray', alpha=0.4, label='Absorbancia')
-            ax.plot(wavelengths, absorbance_sg, linewidth=2, color='darkgreen', label='Absorbancia (Savitzky-Golay)')
-            ax.set_ylabel('Absorbancia (AU)', fontsize=12)
-            ax.legend(fontsize=11)
-
-        ax.set_title(title, fontsize=14, fontweight='bold')
-        ax.set_xlabel('Longitud de Onda (nm)', fontsize=12)
-        ax.grid(True, alpha=0.3)
-        fig.tight_layout()
-
-        buffer = BytesIO()
-        fig.savefig(buffer, format='png', dpi=300, bbox_inches='tight')
-        buffer.seek(0)
-        plot_data = base64.b64encode(buffer.getvalue()).decode()
-        plt.close(fig)
-        return plot_data
-
-    except Exception as e:
-        print(f"Error al crear gráfico {plot_type}: {e}")
-        return None
 
 def create_and_save_plot(data, filename, filepath):
     """Crear y guardar gráfico con reflectancia y filtro Savitzky-Golay"""

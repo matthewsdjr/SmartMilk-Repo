@@ -29,7 +29,6 @@ import time
 from usb import readCommand, writeCommand
 from util import shiftBytes
 import logging
-import asyncio
 import hid
 
 # May want to provide some sort of CLI for these settings, perhaps using data from the GUI

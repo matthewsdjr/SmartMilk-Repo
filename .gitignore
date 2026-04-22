@@ -1,0 +1,13 @@
+__pycache__/
+*.pyc
+.DS_Store
+
+# Datos de escaneos (generados en runtime)
+static/data/*.dat
+static/json/*.json
+static/csv/*.csv
+static/plots/*.png
+
+# Archivos fuente originales (mantener como referencia, no versionar)
+cal2.xlsx
+model.mat
